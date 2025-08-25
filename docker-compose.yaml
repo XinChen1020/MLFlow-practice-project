@@ -1,0 +1,21 @@
+version: "3.12"
+
+services:
+  mlflow:
+    image: ghcr.io/mlflow/mlflow:latest
+    command: >
+      mlflow server
+      --host 0.0.0.0 --port ${MLFLOW_SERVICE_PORT}
+      --backend-store-uri sqlite:////mlflowdb/mlflow.db
+      --serve-artifacts
+      --artifacts-destination file:///mlartifacts
+    ports: ["${LOCAL_PORT}:${MLFLOW_SERVICE_PORT}"]
+    volumes:
+      - mlflowdb:/mlflowdb
+      - mlartifacts:/mlartifacts
+ 
+
+volumes:
+  mlflowdb:
+  mlartifacts:
+
