@@ -14,6 +14,13 @@ services:
       - mlflowdb:/mlflowdb
       - mlartifacts:/mlartifacts
  
+  model-trainer:
+      build:
+        context: ./model-trainer
+      image: model-trainer:latest
+      environment:
+        - MLFLOW_TRACKING_URI=http://mlflow:${MLFLOW_SERVICE_PORT}
+      depends_on: [mlflow]
 
 volumes:
   mlflowdb:
