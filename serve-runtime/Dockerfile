@@ -1,0 +1,20 @@
+# serve-runtime/Dockerfile
+FROM python:3.12-slim
+
+# 1) Modern build tooling so pkg_resources is available
+RUN pip install --no-cache-dir --upgrade pip setuptools wheel
+
+# 2) MLflow + runtime deps your model needs (sklearn example)
+RUN pip install --no-cache-dir \
+    "mlflow[extras]==3.3.1" \
+    scikit-learn pandas numpy gunicorn uvicorn
+
+ENV PYTHONUNBUFFERED=1
+ENV SERVE_PORT=8080
+EXPOSE 8080
+
+# 3) IMPORTANT: use the current environment (no pyenv/virtualenv)
+# Shell-form CMD so ${SERVE_MODEL_URI} expands at runtime
+CMD mlflow models serve -m "${SERVE_MODEL_URI}" \
+    -h 0.0.0.0 -p "${SERVE_PORT}" --workers "${MLFLOW_MODELS_WORKERS:-2}" \
+    --env-manager local

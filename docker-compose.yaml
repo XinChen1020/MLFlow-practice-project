@@ -1,6 +1,9 @@
+# docker-compose.yml
 version: "3.12"
+name: local   # ensures the default network is "local_default" (matches the router's default)
 
 services:
+  # --- MLflow tracking server + local artifact store ---
   mlflow:
     image: ghcr.io/mlflow/mlflow:v3.3.2
     command: >
@@ -9,20 +12,67 @@ services:
       --backend-store-uri sqlite:////mlflowdb/mlflow.db
       --serve-artifacts
       --artifacts-destination file:///mlartifacts
-    ports: ["${LOCAL_PORT}:${MLFLOW_SERVICE_PORT}"]
+    ports:
+      - "${LOCAL_PORT}:${MLFLOW_SERVICE_PORT}"
     volumes:
       - mlflowdb:/mlflowdb
       - mlartifacts:/mlartifacts
- 
-  model-trainer:
-      build:
-        context: ./model-trainer
-      image: model-trainer:latest
-      environment:
-        - MLFLOW_TRACKING_URI=http://mlflow:${MLFLOW_SERVICE_PORT}
-      depends_on: [mlflow]
+
+  # --- Caddy reverse proxy (fixed public port) ---
+  proxy:
+    image: caddy:2
+    container_name: proxy
+    # 9000 is the single public port your users will call
+    ports:
+      - "9000:9000"
+      # (optional) expose admin API to host for debugging:
+      # - "2019:2019"
+    environment:
+      - CADDY_ADMIN=0.0.0.0:2019   # enable Admin API (router uses http://proxy:2019)
+    volumes:
+      - ./caddy.json:/etc/caddy/caddy.json:ro
+    depends_on:
+      - mlflow
+
+  # --- Router (control plane: train + roll + proxy flip) ---
+  router:
+    build: ./api
+    environment:
+      - DOCKER_HOST=http://socket-proxy:2375
+      - MLFLOW_TRACKING_URI=http://mlflow:5000
+      - SERVE_IMAGE=mlserve-runtime:sklearn
+      - SERVE_PORT=8080
+      - STATE_PATH=/state/active.json
+      - TRAINER_IMAGE=model-trainer:latest
+      # proxy integration
+      - PROXY_PUBLIC_PORT=9000
+      - PROXY_ADMIN_URL=http://proxy:2019
+      - PUBLIC_HOST=localhost
+      # rollout tuning (optional)
+      - HEALTH_TIMEOUT_SEC=90
+      - DRAIN_GRACE_SEC=1.5
+    ports:
+      - "8010:8000"    # router API
+    depends_on:
+      - mlflow
+      - socket-proxy
+      - proxy
+    volumes:
+      - router_state:/state
+
+  # --- Docker socket proxy (restrict router’s Docker access) ---
+  socket-proxy:
+    image: tecnativa/docker-socket-proxy:latest
+    privileged: true
+    environment:
+      - CONTAINERS=1
+      - NETWORKS=1
+      - POST=1
+      - INFO=1
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
 
 volumes:
   mlflowdb:
   mlartifacts:
-
+  router_state:

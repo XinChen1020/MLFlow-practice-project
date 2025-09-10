@@ -8,6 +8,9 @@ WORKDIR /app
 COPY pyproject.toml uv.lock ./
 RUN --mount=type=cache,target=/root/.cache/uv uv sync --locked --no-install-project
 
+ENV PATH="/app/.venv/bin:${PATH}"
+
+
 COPY main.py .
 EXPOSE 8000
 CMD ["uvicorn","main:app","--host","0.0.0.0","--port","8000"]

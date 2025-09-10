@@ -1,0 +1,22 @@
+{
+  "admin": { "listen": ":2019" },
+  "apps": {
+    "http": {
+      "servers": {
+        "srv0": {
+          "listen": [":9000"],
+          "routes": [
+            {
+              "handle": [
+                {
+                  "handler": "reverse_proxy",
+                  "upstreams": [{ "dial": "serve-bootstrap:8080" }]
+                }
+              ]
+            }
+          ]
+        }
+      }
+    }
+  }
+}
