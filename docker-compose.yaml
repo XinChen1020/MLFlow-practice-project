@@ -35,30 +35,24 @@ services:
       - mlflow
 
   # --- Router (control plane: train + roll + proxy flip) ---
+  
   router:
-    build: ./api
+    build:
+      context: ./router
     environment:
-      - DOCKER_HOST=http://socket-proxy:2375
+      - TRAINER_SPECS_PATH=/app/trainer-specs
+      - TRAINER_SKLEARN_IMAGE=trainer-sklearn-model-1:${TAG:-latest}
       - MLFLOW_TRACKING_URI=http://mlflow:5000
-      - SERVE_IMAGE=mlserve-runtime:sklearn
-      - SERVE_PORT=8080
-      - STATE_PATH=/state/active.json
-      - TRAINER_IMAGE=model-trainer:latest
-      # proxy integration
-      - PROXY_PUBLIC_PORT=9000
-      - PROXY_ADMIN_URL=http://proxy:2019
-      - PUBLIC_HOST=localhost
-      # rollout tuning (optional)
-      - HEALTH_TIMEOUT_SEC=90
-      - DRAIN_GRACE_SEC=1.5
+      - DOCKER_HOST=http://socket-proxy:2375
+    volumes:
+      - router_state:/state
     ports:
       - "8010:8000"    # router API
     depends_on:
       - mlflow
       - socket-proxy
       - proxy
-    volumes:
-      - router_state:/state
+
 
   # --- Docker socket proxy (restrict router’s Docker access) ---
   socket-proxy:

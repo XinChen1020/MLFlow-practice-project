@@ -73,6 +73,7 @@ def main():
             f"name = '{registered_model}' and run_id = '{run.info.run_id}'"
         )), None)
         version = int(mv.version) if mv else None
+        print(f"Registered model: {registered_model}, version: {version}")
 
         # if you want to set alias from env:
         alias = os.getenv("SET_ALIAS")

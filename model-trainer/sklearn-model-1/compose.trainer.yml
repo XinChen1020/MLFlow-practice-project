@@ -1,0 +1,7 @@
+services:
+  trainer-sklearn-model-1:
+    build:
+      context: .
+      dockerfile: Dockerfile.trainer
+    image: trainer-sklearn-model-1:${TAG:-latest}
+    command: ["true"]   # build-only helper; router will run the container later
