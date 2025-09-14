@@ -41,7 +41,6 @@ services:
       context: ./router
     environment:
       - TRAINER_SPECS_PATH=/app/trainer-specs
-      - TRAINER_SKLEARN_IMAGE=trainer-sklearn-model-1:${TAG:-latest}
       - MLFLOW_TRACKING_URI=http://mlflow:5000
       - DOCKER_HOST=http://socket-proxy:2375
     volumes:
