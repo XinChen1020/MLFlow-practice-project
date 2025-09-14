@@ -29,8 +29,6 @@ services:
       # - "2019:2019"
     environment:
       - CADDY_ADMIN=0.0.0.0:2019   # enable Admin API (router uses http://proxy:2019)
-    volumes:
-      - ./caddy.json:/etc/caddy/caddy.json:ro
     depends_on:
       - mlflow
 
