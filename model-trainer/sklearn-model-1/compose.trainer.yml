@@ -1,3 +1,7 @@
+# Only build all trainer and server images for the router
+# The router will launch the trainer and server containers later on demand
+#
+
 services:
   trainer-sklearn-model-1:
     build:
@@ -5,3 +9,14 @@ services:
       dockerfile: Dockerfile.trainer
     image: trainer-sklearn-model-1:${TAG:-latest}
     command: ["true"]   # build-only helper; router will run the container later
+  server-sklearn-model-1:
+    build:
+      context: .
+      dockerfile: Dockerfile.serve
+    image: server-sklearn-model-1:${TAG:-latest}
+    environment:
+      - MLFLOW_TRACKING_URI=http://mlflow:5000
+      - MODEL_NAME=DiabetesRF
+      - MODEL_STAGE=Production
+    command: ["true"]
+
