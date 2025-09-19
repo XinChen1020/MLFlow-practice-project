@@ -5,7 +5,7 @@ MLFLOW_TRACKING_URI  = os.getenv("MLFLOW_TRACKING_URI", "http://mlflow:5000")
 DOCKER_HOST          = os.getenv("DOCKER_HOST", "http://socket-proxy:2375")
 
 # Generic serving runtime (fallbacks used by roll if tags/specs are missing)
-SERVE_IMAGE          = os.getenv("SERVE_IMAGE", "mlserve-runtime:sklearn")
+SERVE_IMAGE          = os.getenv("SERVE_IMAGE")
 SERVE_PORT           = int(os.getenv("SERVE_PORT", "8080"))
 
 # State & network
@@ -15,7 +15,7 @@ HEALTH_TIMEOUT_SEC   = int(os.getenv("HEALTH_TIMEOUT_SEC", "90"))
 DRAIN_GRACE_SEC      = float(os.getenv("DRAIN_GRACE_SEC", "1.5"))
 
 # Trainer defaults (used if spec omits fields)
-TRAINER_IMAGE        = os.getenv("TRAINER_IMAGE", "model-trainer:latest")
+TRAINER_IMAGE        = os.getenv("TRAINER_IMAGE")
 TRAINER_TIMEOUT_SEC  = int(os.getenv("TRAINER_TIMEOUT_SEC", "1800"))
 LOG_TAIL_ON_ERROR    = int(os.getenv("TRAINER_LOG_TAIL", "1200"))
 

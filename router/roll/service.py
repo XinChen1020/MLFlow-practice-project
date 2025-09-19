@@ -74,15 +74,23 @@ class RollService:
         return c.id
 
     def _retire(self, state_name: str | None) -> None:
+        """
+        Stop and remove a container by name, ignoring errors.
+        """
+        
         if not state_name:
             return
         try:
             c = self._docker.containers.get(state_name)
-            c.stop(timeout=5); c.remove()
+            c.stop(timeout=5) 
+            c.remove()
         except Exception:
-            pass
+            print(f"Warning: failed to retire container {state_name}")
 
     def _make_caddy_config(self, target_container: str) -> Dict[str, Any]:
+        """
+        Make Caddy config to point to target container.
+        """
         return {
             "admin": {"listen": ":2019"},
             "apps": {
@@ -107,6 +115,10 @@ class RollService:
         }
 
     def _proxy_point_to(self, target_container: str) -> None:
+        """
+        Point Caddy proxy to target container using POST.
+        """
+        
         cfg_json = self._make_caddy_config(target_container)
         r = httpx.post(self._admin_url, json=cfg_json, timeout=5.0)
         try:

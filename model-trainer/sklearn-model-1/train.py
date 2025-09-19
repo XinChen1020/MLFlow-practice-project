@@ -1,95 +1,178 @@
+#!/usr/bin/env python3
+"""
+RandomForestRegressor training with MLflow tracking and evaluation.
+
+- Reads a CSV via DATASET_PATH + TARGET_COLUMN (or generates a diabetes demo CSV).
+- Splits Train / Val / Test.
+- Logs dataset lineage with mlflow.log_input (contexts: training, validation, evaluation).
+- Logs parameters and registers the model.
+- Uses mlflow.evaluate for canonical regression metrics/plots (no manual metrics).
+
+Environment:
+  MLFLOW_TRACKING_URI        MLflow tracking server URI
+  MLFLOW_EXPERIMENT          Experiment name (default: "diabetes_rf_demo")
+  REGISTERED_MODEL_NAME      Model Registry name (default: "DiabetesRF")
+  DATASET_PATH               CSV path; if unset, a demo CSV is created under ./demo/data/diabetes.csv
+  TARGET_COLUMN              Target column name (required if DATASET_PATH is set)
+  TEST_SIZE                  Test fraction (default "0.2")
+  VAL_SIZE                   Validation fraction of non-test portion (default "0.2")
+  RANDOM_STATE               Random seed (default "42")
+  N_ESTIMATORS               RF trees (default "200")
+  MAX_DEPTH                  RF max depth (default "8")
+  MLFLOW_RUN_ID              If set, reuse an existing run (from orchestrator); otherwise create a new run
+  SET_ALIAS                  Optional alias to attach to the created model version (e.g., "staging")
+  LOG_LEVEL                  Logging level (default "INFO")
+"""
+
+from __future__ import annotations
+
+import logging
 import os
-import json
+import time
+from pathlib import Path
+from typing import Optional, Tuple
 
 import mlflow
 import mlflow.sklearn
 from mlflow import MlflowClient
-
-from sklearn.datasets import load_diabetes
-from sklearn.model_selection import train_test_split
-from sklearn.ensemble import RandomForestRegressor
-from sklearn.metrics import mean_squared_error, r2_score, mean_absolute_error
-
 import numpy as np
+import pandas as pd
+from sklearn import __version__ as sklearn_version
+from sklearn.datasets import load_diabetes
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.model_selection import train_test_split
+from helpers import prepare_demo_csv, load_csv, split_train_val_test, log_dataset_stage, resolve_version_for_run
 
 
-# Set a clear experiment name (create if absent)
-mlflow.set_experiment("diabetes_rf_demo")
+# ---------- Logging & Experiment ----------
+EXPERIMENT = os.getenv("MLFLOW_EXPERIMENT", "diabetes_rf_demo")
+mlflow.set_experiment(EXPERIMENT)
 
+LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
+logging.basicConfig(
+    level=getattr(logging, LOG_LEVEL, logging.INFO),
+    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+)
+log = logging.getLogger("trainer")
 client = MlflowClient()
 
-def main():
-    # Use pandas DataFrame so we have column names for the schema
-    ds = load_diabetes(as_frame=True)
-    X, y = ds.data, ds.target  # X: DataFrame with named columns; y: Series
 
-    X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=0.2, random_state=42
+# ---------- Main ----------
+
+def main() -> None:
+    # Data source selection
+    dataset_path = os.getenv("DATASET_PATH")
+    target_col = os.getenv("TARGET_COLUMN")
+    if not dataset_path:
+        dataset_path, target_col = prepare_demo_csv(os.getenv("DEMO_DIR", "./demo/data"))
+        log.info("Using demo CSV: %s (target='%s')", dataset_path, target_col)
+    elif not target_col:
+        raise ValueError("TARGET_COLUMN must be set when DATASET_PATH is provided.")
+
+    # Load & split
+    X, y = load_csv(dataset_path, target_col)
+    test_size = float(os.getenv("TEST_SIZE", "0.2"))
+    val_size = float(os.getenv("VAL_SIZE", "0.2"))
+    random_state = int(os.getenv("RANDOM_STATE", "42"))
+    X_tr, y_tr, X_va, y_va, X_te, y_te = split_train_val_test(
+        X, y, test_size=test_size, val_size=val_size, random_state=random_state
     )
 
+    # Hyperparameters
     n_estimators = int(os.getenv("N_ESTIMATORS", "200"))
     max_depth = int(os.getenv("MAX_DEPTH", "8"))
-    random_state = 42
+    registered_model = os.getenv("REGISTERED_MODEL_NAME", "DiabetesRF")
 
-    with mlflow.start_run() as run:
+    run_id_env = os.getenv("MLFLOW_RUN_ID")  # set by orchestrator; optional
+
+    # Use an existing run if provided; otherwise open a brand-new run
+    with (mlflow.start_run(run_id=run_id_env) if run_id_env else mlflow.start_run()) as run:
+        run_id = run.info.run_id
+        mlflow.set_tags({"launch_mode": "orchestrated" if run_id_env else "standalone"})
+
+        # Dataset lineage
+        label = Path(dataset_path).resolve().as_uri()
+        log_dataset_stage(X_tr, y_tr, stage="training",   name="train_dataset", source=label)
+        log_dataset_stage(X_va, y_va, stage="validation", name="val_dataset",   source=label)
+        log_dataset_stage(X_te, y_te, stage="evaluation", name="test_dataset",  source=label)
+
+        # Parameters (data + model)
+        mlflow.log_params(
+            {
+                "n_estimators": n_estimators,
+                "max_depth": max_depth,
+                "random_state": random_state,
+                "test_size": test_size,
+                "val_size": val_size,
+                "feature_count": X.shape[1],
+                "sklearn_version": sklearn_version,
+                "dataset_path": dataset_path,
+                "target_column": target_col,
+            }
+        )
+
+        # Train
         model = RandomForestRegressor(
             n_estimators=n_estimators,
             max_depth=max_depth,
             random_state=random_state,
-            n_jobs=-1
+            n_jobs=-1,
         )
-        model.fit(X_train, y_train)
+        model.fit(X_tr, y_tr)
 
-        preds = model.predict(X_test)
-        rmse = float(np.sqrt(mean_squared_error(y_test, preds)))
-        mae = float(mean_absolute_error(y_test, preds))
-        r2  = float(r2_score(y_test, preds))
+        # Log & register model (use new param if available; fallback to artifact_path)
+        try:
+            mlflow.sklearn.log_model(
+                sk_model=model,
+                name="model",  # preferred on newer MLflow
+                input_example=X.head(2),
+                registered_model_name=registered_model,
+            )
+        except TypeError:
+            mlflow.sklearn.log_model(
+                sk_model=model,
+                artifact_path="model",  # backward-compatible
+                input_example=X.head(2),
+                registered_model_name=registered_model,
+            )
 
-        # --- Params/Metrics ---
-        mlflow.log_params({
-            "n_estimators": n_estimators,
-            "max_depth": max_depth,
-            "random_state": random_state
-        })
-        
-        mlflow.log_metrics({"rmse": rmse, "mae": mae, "r2": r2})
-
-        # --- Input example only
-        input_example = X.head(2)
-
-        # --- Log the model (and register if server supports registry) ---
-        mlflow.sklearn.log_model(
-            sk_model=model,
-            artifact_path="model",
-            input_example=input_example,          # triggers auto signature inference
-            registered_model_name="DiabetesRF"    # works with SQL-backed tracking
+        # Standardized evaluation on test set (top-level API for broad compatibility)
+        eval_df = X_te.copy()
+        eval_df[target_col] = y_te.values
+        result = mlflow.evaluate(
+            model=f"runs:/{run_id}/model",
+            data=eval_df,
+            targets=target_col,
+            model_type="regressor",
         )
 
-        print(f"Logged run. Metrics -> RMSE: {rmse:.4f}  MAE: {mae:.4f}  R2: {r2:.4f}")
+        rmse = result.metrics.get("root_mean_squared_error")
+        mae = result.metrics.get("mean_absolute_error")
+        r2 = result.metrics.get("r2_score")
+        log.info("Evaluation (test): RMSE=%.4f  MAE=%.4f  R2=%.4f", rmse, mae, r2)
 
-        registered_model = "DiabetesRF"  # or read from env / arg
-        # find the version that belongs to this run
-        mv = next(iter(client.search_model_versions(
-            f"name = '{registered_model}' and run_id = '{run.info.run_id}'"
-        )), None)
-        version = int(mv.version) if mv else None
-        print(f"Registered model: {registered_model}, version: {version}")
-
-        # if you want to set alias from env:
+        # Resolve model version for this run and optionally set alias
+        version = resolve_version_for_run(client, registered_model, run_id)
         alias = os.getenv("SET_ALIAS")
-        if alias and version:
-            client.set_registered_model_alias(registered_model, alias, version)
+        if alias and version is not None:
+            client.set_registered_model_alias(registered_model, alias, int(version))
+            log.info("Set alias '%s' on %s version %s", alias, registered_model, version)
 
-        # final structured line for the router to parse
-        print(json.dumps({
-            "run_id": run.info.run_id,
-            "registered_model": registered_model,
-            "version": version,
-            "alias": alias,
-            "metrics": {"rmse": rmse, "mae": mae, "r2": r2}
-        }))
+        # Optional: emit a one-line summary for human/scripts (doesn't affect orchestrator path)
+        print(
+            json.dumps(
+                {
+                    "run_id": run_id,
+                    "registered_model": registered_model,
+                    "version": version,
+                    "alias": alias,
+                    "metrics": {"rmse": rmse, "mae": mae, "r2": r2},
+                }
+            ),
+            flush=True,
+        )
+
 
 if __name__ == "__main__":
-    # If MLFLOW_TRACKING_URI isn't set, MLflow uses local ./mlruns
-    print("MLFLOW_TRACKING_URI =", mlflow.get_tracking_uri())
+    import json  # local import to minimize global namespace
     main()
