@@ -58,6 +58,11 @@ class RollService:
         raise HTTPException(status_code=400, detail="ref must be '@alias' or integer version")
 
     def _start_runtime(self, name: str, network: str, model_uri: str) -> str:
+        if not cfg.SERVE_IMAGE:
+            raise HTTPException(
+                status_code=500,
+                detail="SERVE_IMAGE is not configured; set SERVE_IMAGE or supply it via trainer specs.",
+            )
         c = self._docker.containers.run(
             image=cfg.SERVE_IMAGE,
             name=name,

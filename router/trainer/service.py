@@ -156,6 +156,15 @@ class TrainerService:
             raise HTTPException(status_code=404, detail=f"trainer spec not found: {trainer}")
         spec = dict(self._specs[trainer] or {})
         image = spec.get("trainer_image") or cfg.TRAINER_IMAGE
+        if not image:
+            raise HTTPException(
+                status_code=500,
+                detail=(
+                    "trainer_image not configured for trainer "
+                    f"'{trainer}'. Set trainer_image in the trainer spec "
+                    "or define the TRAINER_IMAGE environment variable."
+                ),
+            )
         spec["trainer_image"] = image
         # Normalize gpus field
         if "gpus" in spec and spec["gpus"] not in (None, ""):
