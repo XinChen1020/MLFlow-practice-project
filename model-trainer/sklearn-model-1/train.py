@@ -24,23 +24,15 @@ Environment:
   LOG_LEVEL                  Logging level (default "INFO")
 """
 
-from __future__ import annotations
-
 import logging
 import os
-import time
 from pathlib import Path
-from typing import Optional, Tuple
 
 import mlflow
 import mlflow.sklearn
 from mlflow import MlflowClient
-import numpy as np
-import pandas as pd
 from sklearn import __version__ as sklearn_version
-from sklearn.datasets import load_diabetes
 from sklearn.ensemble import RandomForestRegressor
-from sklearn.model_selection import train_test_split
 from helpers import prepare_demo_csv, load_csv, split_train_val_test, log_dataset_stage, resolve_version_for_run
 
 
@@ -120,21 +112,14 @@ def main() -> None:
         )
         model.fit(X_tr, y_tr)
 
-        # Log & register model (use new param if available; fallback to artifact_path)
-        try:
-            mlflow.sklearn.log_model(
-                sk_model=model,
-                name="model",  # preferred on newer MLflow
-                input_example=X.head(2),
-                registered_model_name=registered_model,
-            )
-        except TypeError:
-            mlflow.sklearn.log_model(
-                sk_model=model,
-                artifact_path="model",  # backward-compatible
-                input_example=X.head(2),
-                registered_model_name=registered_model,
-            )
+        # Log & register model
+        mlflow.sklearn.log_model(
+            sk_model=model,
+            name="model",
+            input_example=X.head(2),
+            registered_model_name=registered_model,
+        )
+
 
         # Standardized evaluation on test set (top-level API for broad compatibility)
         eval_df = X_te.copy()
