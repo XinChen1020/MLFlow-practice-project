@@ -44,7 +44,14 @@ class TrainerService:
 
     # ---------- Public API ----------
 
-    def train(self, trainer: str, *, wait_seconds: Optional[int] = None) -> Dict[str, Any]:
+    def train(
+        self,
+        trainer: str,
+        *,
+        wait_seconds: Optional[int] = None,
+        image_key: Optional[str] = None,
+        parameters: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
         """
         Launch a trainer container and return MLflow identifiers.
 
@@ -59,7 +66,7 @@ class TrainerService:
           "metrics": null
         }
         """
-        spec = self._resolve_spec(trainer)
+        spec = self._resolve_spec(trainer, image_key=image_key)
 
         name = self._unique_name(trainer)
         image = spec["trainer_image"]
@@ -67,6 +74,27 @@ class TrainerService:
         gpus = spec.get("gpus")
         env = dict(spec.get("env") or {})
         env.setdefault("MLFLOW_TRACKING_URI", cfg.MLFLOW_TRACKING_URI)
+        
+        # Apply parameter overrides if there's any in the request
+        applied_parameters: Dict[str, Any] = {}
+        if parameters:
+            for key, value in parameters.items():
+                key_str = str(key)
+                if value is None:
+                    env.pop(key_str, None)
+                    applied_parameters[key_str] = None
+                    continue
+                if isinstance(value, (str, bytes)):
+                    env_value = value.decode("utf-8") if isinstance(value, bytes) else value
+                elif isinstance(value, (int, float, bool)):
+                    env_value = str(value)
+                else:
+                    env_value = json.dumps(value)
+                env[key_str] = env_value
+                applied_parameters[key_str] = env_value
+
+        selected_image_key = spec.get("selected_image_key")
+        image_key_for_log = selected_image_key if selected_image_key not in (None, "") else "default"
 
         # Ensure we know the experiment & model name used by the trainer
         experiment = env.get("MLFLOW_EXPERIMENT", "diabetes_rf_demo")
@@ -81,7 +109,12 @@ class TrainerService:
         })
         env["MLFLOW_RUN_ID"] = run_id
 
-        print(f"Starting trainer container {name} (image={image}, timeout={timeout}s, gpus={gpus})")
+        print(
+            "Starting trainer container "
+            f"{name} "
+            f"(image={image}, image_key={image_key_for_log}, timeout={timeout}s, gpus={gpus}, "
+            f"parameters={applied_parameters or None})"
+        )        
         self._start_trainer(image=image, env=env, network=cfg.COMPOSE_NETWORK, name=name, gpus=gpus)
         status, logs = self._wait_trainer(name, timeout)
 
@@ -96,20 +129,40 @@ class TrainerService:
             "version": version,
             "alias_set": None,
             "metrics": None,
+            "image_key": selected_image_key,
+            "parameters": applied_parameters or None,
         }
 
         if status != 0 or version is None:
             raise HTTPException(
                 status_code=500,
-                detail={"error": f"trainer failed (exit={status})", **resp, "logs_tail": logs[-cfg.LOG_TAIL_ON_ERROR:]},
+                detail=
+                {
+                    "error": f"trainer failed (exit={status})",
+                    **resp,
+                    "logs_tail": logs[-cfg.LOG_TAIL_ON_ERROR:],
+                },
             )
+            
         return resp
 
-    def train_then_roll(self, trainer: str, *, wait_seconds: Optional[int] = None) -> Dict[str, Any]:
+    def train_then_roll(
+        self,
+        trainer: str,
+        *,
+        wait_seconds: Optional[int] = None,
+        image_key: Optional[str] = None,
+        parameters: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
         """
         Train and then roll out the produced model version using RollService.
         """
-        train_resp = self.train(trainer, wait_seconds=wait_seconds)
+        train_resp = self.train(
+            trainer,
+            wait_seconds=wait_seconds,
+            image_key=image_key,
+            parameters=parameters,
+        )
         print(f"Trainer completed: {train_resp}")
         version = train_resp.get("version")
         model_name = train_resp.get("registered_model")
@@ -151,21 +204,62 @@ class TrainerService:
 
     # ---------- Docker helpers ----------
 
-    def _resolve_spec(self, trainer: str) -> Dict[str, Any]:
+    def _resolve_spec(self, trainer: str, image_key: Optional[str] = None) -> Dict[str, Any]:
+        image_key = image_key or None
         if trainer not in self._specs:
-            raise HTTPException(status_code=404, detail=f"trainer spec not found: {trainer}")
+            raise HTTPException(
+                status_code=404,
+                detail={
+                    "error": "trainer spec not found",
+                    "trainer": trainer,
+                    "image_key": image_key,
+                },
+            )
         spec = dict(self._specs[trainer] or {})
-        image = spec.get("trainer_image") or cfg.TRAINER_IMAGE
-        if not image:
+        options_raw = spec.get("image_options") or {}
+        if options_raw and not isinstance(options_raw, dict):
             raise HTTPException(
                 status_code=500,
-                detail=(
-                    "trainer_image not configured for trainer "
-                    f"'{trainer}'. Set trainer_image in the trainer spec "
-                    "or define the TRAINER_IMAGE environment variable."
-                ),
+                detail={
+                    "error": "image_options must be a mapping",
+                    "trainer": trainer,
+                    "image_key": image_key,
+                },
             )
-        spec["trainer_image"] = image
+        options = dict(options_raw) if isinstance(options_raw, dict) else {}
+        default_image = spec.get("trainer_image") or cfg.TRAINER_IMAGE
+        selected_image = default_image
+        if image_key:
+            if image_key not in options:
+                raise HTTPException(
+                    status_code=400,
+                    detail=
+                    {
+                        "error": "unknown trainer image key",
+                        "trainer": trainer,
+                        "image_key": image_key,
+                        "available_keys": sorted(str(k) for k in options.keys()),
+                    },
+                )
+            selected_image = options[image_key]
+        if not selected_image:
+            raise HTTPException(
+                status_code=500,
+                detail=
+                {
+                    "error": "trainer_image not configured",
+                    "trainer": trainer,
+                    "image_key": image_key,
+                    "hint": (
+                        "Set trainer_image in the trainer spec or define "
+                        "the TRAINER_IMAGE environment variable."
+                    ),
+                },
+            )
+        spec["trainer_image"] = selected_image
+        spec["image_options"] = options
+        spec["selected_image_key"] = image_key
+
         # Normalize gpus field
         if "gpus" in spec and spec["gpus"] not in (None, ""):
             g = spec["gpus"]

@@ -42,7 +42,6 @@ services:
       - MLFLOW_TRACKING_URI=http://mlflow:5000
       - DOCKER_HOST=http://socket-proxy:2375
       - SERVE_IMAGE=server-sklearn-model-1:latest
-      - TRAINER_IMAGE=trainer-sklearn-model-1:latest
     volumes:
       - router_state:/state
     ports:
