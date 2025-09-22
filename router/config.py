@@ -1,4 +1,4 @@
-import os, json, glob
+import os, json, glob, yaml
 
 # ---------- Core env ----------
 MLFLOW_TRACKING_URI  = os.getenv("MLFLOW_TRACKING_URI", "http://mlflow:5000")
@@ -47,7 +47,6 @@ def load_trainer_specs() -> dict:
             try:
                 text = _read_text(fp)
                 if fp.endswith((".yaml", ".yml")):
-                    import yaml  # ensure pyyaml in pyproject
                     spec = yaml.safe_load(text) or {}
                 else:
                     spec = json.loads(text)
@@ -63,7 +62,6 @@ def load_trainer_specs() -> dict:
     try:
         text = _read_text(TRAINER_SPECS_PATH)
         if TRAINER_SPECS_PATH.endswith((".yaml", ".yml")):
-            import yaml
             return yaml.safe_load(text) or {}
         return json.loads(text)
     except Exception:
