@@ -17,6 +17,13 @@ services:
     volumes:
       - mlflowdb:/mlflowdb
       - mlartifacts:/mlartifacts
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:${MLFLOW_SERVICE_PORT}/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+
+  # --- Serve image (for testing) ---
 
   # --- Caddy reverse proxy (fixed public port) ---
   proxy:
@@ -33,15 +40,13 @@ services:
       - mlflow
 
   # --- Router (control plane: train + roll + proxy flip) ---
-  
   router:
     build:
       context: ./router
     environment:
       - TRAINER_SPECS_PATH=/app/trainer-specs
-      - MLFLOW_TRACKING_URI=http://mlflow:5000
+      - MLFLOW_TRACKING_URI=http://mlflow:${MLFLOW_SERVICE_PORT}
       - DOCKER_HOST=http://socket-proxy:2375
-      - SERVE_IMAGE=server-sklearn-model-1:latest
     volumes:
       - router_state:/state
     ports:

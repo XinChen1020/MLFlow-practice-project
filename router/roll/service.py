@@ -5,6 +5,9 @@ from fastapi import HTTPException
 
 import config as cfg
 from common import ml_client, docker_client, load_state, save_state, unique, ping
+from docker.types import Healthcheck
+
+
 
 class RollService:
     def __init__(self, *, proxy_admin_url: str | None = None):
@@ -63,7 +66,17 @@ class RollService:
                 status_code=500,
                 detail="SERVE_IMAGE is not configured; set SERVE_IMAGE or supply it via trainer specs.",
             )
-        c = self._docker.containers.run(
+        
+        # Start a new container
+        healthcheck = Healthcheck(
+            test=["CMD", "curl", "--f",  f"http://localhost:{cfg.SERVE_PORT}/health"],
+            interval=5e9,     # 5s in nanoseconds
+            timeout=5e9,      # 5s
+            start_period=5e9, # 5s
+            retries=3,
+        )
+
+        container = self._docker.containers.run(
             image=cfg.SERVE_IMAGE,
             name=name,
             detach=True,
@@ -71,12 +84,13 @@ class RollService:
             environment={
                 "MLFLOW_TRACKING_URI": cfg.MLFLOW_TRACKING_URI,
                 "SERVE_MODEL_URI": model_uri,
-                "SERVE_PORT": str(cfg.SERVE_PORT),
+                "SERVE_PORT": str(cfg.SERVE_PORT)
             },
             restart_policy={"Name": "on-failure", "MaximumRetryCount": 1},
             labels={"app": "mlflow-serve"},
+            healthcheck=healthcheck
         )
-        return c.id
+        return container.id
 
     def _retire(self, state_name: str | None) -> None:
         """
