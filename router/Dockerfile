@@ -23,7 +23,7 @@ COPY status ./status
 COPY roll ./roll
 COPY trainer ./trainer
 COPY main.py .
-COPY trainer-specs ./trainer-specs
+COPY specs ./specs
 
 
 EXPOSE 8000
