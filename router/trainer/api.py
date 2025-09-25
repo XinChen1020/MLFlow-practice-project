@@ -32,6 +32,10 @@ class TrainResp(BaseModel):
     metrics: dict | None = None
     logs_tail: str | None = None
     image_key: str | None = Field(default=None, description="Image key used for the run.")
+    serve_image: str | None = Field(
+        default=None,
+        description="Serving image resolved for rolling out the produced model.",
+    )
     parameters: Dict[str, Any] | None = Field(
         default=None,
         description="Applied parameter overrides for the trainer run.",

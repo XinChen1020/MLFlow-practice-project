@@ -13,6 +13,10 @@ class RollReq(BaseModel):
     name: str = Field(..., examples=["DiabetesRF"])
     ref: Union[str, int] = Field(..., examples=["@production", 17])
     wait_ready_seconds: int = Field(default=cfg.HEALTH_TIMEOUT_SEC, ge=1, le=900)
+    serve_image: str | None = Field(
+        default=None,
+        description="Optional serving image override. Falls back to configuration when omitted.",
+    )
 
 class RollResp(BaseModel):
     active: str
@@ -21,5 +25,10 @@ class RollResp(BaseModel):
 
 @router.post("/roll", response_model=RollResp)
 def roll(body: RollReq):
-    out = _svc.roll(name=body.name, ref=body.ref, wait_ready_seconds=body.wait_ready_seconds)
+    out = _svc.roll(
+        name=body.name,
+        ref=body.ref,
+        wait_ready_seconds=body.wait_ready_seconds,
+        serve_image=body.serve_image,
+    )
     return RollResp(**out)
