@@ -74,7 +74,8 @@ class TrainerService:
         gpus = spec.get("gpus")
         env = dict(spec.get("env") or {})
         env.setdefault("MLFLOW_TRACKING_URI", cfg.MLFLOW_TRACKING_URI)
-        
+        serve_image = spec.get("selected_serve_image")
+
         # Apply parameter overrides if there's any in the request
         applied_parameters: Dict[str, Any] = {}
         if parameters:
@@ -112,9 +113,10 @@ class TrainerService:
         print(
             "Starting trainer container "
             f"{name} "
-            f"(image={image}, image_key={image_key_for_log}, timeout={timeout}s, gpus={gpus}, "
+            f"(image={image}, image_key={image_key_for_log}, serve_image={serve_image}, timeout={timeout}s, gpus={gpus}, "
             f"parameters={applied_parameters or None})"
-        )        
+        )
+
         self._start_trainer(image=image, env=env, network=cfg.COMPOSE_NETWORK, name=name, gpus=gpus)
         status, logs = self._wait_trainer(name, timeout)
 
@@ -131,6 +133,7 @@ class TrainerService:
             "metrics": None,
             "image_key": selected_image_key,
             "parameters": applied_parameters or None,
+            "serve_image": serve_image
         }
 
         if status != 0 or version is None:
@@ -169,7 +172,13 @@ class TrainerService:
         if not version or not model_name:
             raise HTTPException(status_code=500, detail="missing registered_model/version after training")
         try:
-            roll_out = self._roll.roll(name=model_name, ref=version, wait_ready_seconds=cfg.HEALTH_TIMEOUT_SEC)
+            roll_out = self._roll.roll(
+                name=model_name,
+                ref=version,
+                wait_ready_seconds=cfg.HEALTH_TIMEOUT_SEC,
+                serve_image=train_resp.get("serve_image"),
+            )
+
             return {**train_resp, "rolled": True, "public_url": roll_out.get("public_url")}
         except HTTPException as e:
             return {**train_resp, "rolled": False, "logs_tail": f"roll failed: {e.detail}"}
@@ -256,9 +265,30 @@ class TrainerService:
                     ),
                 },
             )
+        serve_options_raw = spec.get("serve_image_options") or {}
+        if serve_options_raw and not isinstance(serve_options_raw, dict):
+            raise HTTPException(
+                status_code=500,
+                detail=
+                {
+                    "error": "serve_image_options must be a mapping",
+                    "trainer": trainer,
+                    "image_key": image_key,
+                },
+            )
+        
+        serve_options = dict(serve_options_raw) if isinstance(serve_options_raw, dict) else {}
+        default_serve_image = spec.get("serve_image") or cfg.SERVE_IMAGE
+        selected_serve_image = default_serve_image
+        if image_key and image_key in serve_options:
+            selected_serve_image = serve_options[image_key]
+
         spec["trainer_image"] = selected_image
         spec["image_options"] = options
         spec["selected_image_key"] = image_key
+        spec["serve_image"] = default_serve_image
+        spec["serve_image_options"] = serve_options
+        spec["selected_serve_image"] = selected_serve_image
 
         # Normalize gpus field
         if "gpus" in spec and spec["gpus"] not in (None, ""):

@@ -2,6 +2,9 @@ sklearn-model-1:
   trainer_image: trainer-sklearn-model-1:latest
   image_options:
     cpu: trainer-sklearn-model-1:latest
+  serve_image: server-sklearn-model-1:latest
+  serve_image_options:
+    cpu: server-sklearn-model-1:latest
   timeout: 1800
   env:
     MLFLOW_EXPERIMENT: diabetes_rf_demo

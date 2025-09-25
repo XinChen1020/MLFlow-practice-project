@@ -16,11 +16,18 @@ class RollService:
         self._admin_url = (proxy_admin_url or cfg.PROXY_ADMIN_URL).rstrip("/") + "/load"
 
     # --- public API ---
-    def roll(self, *, name: str, ref: Union[str, int], wait_ready_seconds: int) -> Dict[str, str]:
+    def roll(
+        self,
+        *,
+        name: str,
+        ref: Union[str, int],
+        wait_ready_seconds: int,
+        serve_image: str | None = None,
+    ) -> Dict[str, str]:
         target_uri = self._resolve_models_uri(name, ref)
 
         candidate_name = unique("serve-cand")
-        self._start_runtime(candidate_name, cfg.COMPOSE_NETWORK, target_uri)
+        self._start_runtime(candidate_name, cfg.COMPOSE_NETWORK, target_uri, serve_image=serve_image)
         cand_internal = f"http://{candidate_name}:{cfg.SERVE_PORT}"
 
         deadline = time.time() + wait_ready_seconds
@@ -60,11 +67,20 @@ class RollService:
             raise HTTPException(status_code=404, detail=f"model/alias not found: {e}")
         raise HTTPException(status_code=400, detail="ref must be '@alias' or integer version")
 
-    def _start_runtime(self, name: str, network: str, model_uri: str) -> str:
-        if not cfg.SERVE_IMAGE:
+    def _start_runtime(
+        self,
+        name: str,
+        network: str,
+        model_uri: str,
+        *,
+        serve_image: str | None = None,
+    ) -> str:
+        
+        image = serve_image or cfg.SERVE_IMAGE
+        if not image:
             raise HTTPException(
                 status_code=500,
-                detail="SERVE_IMAGE is not configured; set SERVE_IMAGE or supply it via trainer specs.",
+                detail="Serving image not configured; supply serve_image via the request or trainer specs, or set SERVE_IMAGE."
             )
         
         # Start a new container
@@ -77,7 +93,7 @@ class RollService:
         )
 
         container = self._docker.containers.run(
-            image=cfg.SERVE_IMAGE,
+            image=image,
             name=name,
             detach=True,
             network=network,

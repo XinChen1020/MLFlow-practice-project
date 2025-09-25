@@ -32,6 +32,10 @@ class TrainResp(BaseModel):
     metrics: dict | None = None
     logs_tail: str | None = None
     image_key: str | None = Field(default=None, description="Image key used for the run.")
+    serve_image: str | None = Field(
+        default=None,
+        description="Serving image resolved for rolling out the produced model.",
+    )
     parameters: Dict[str, Any] | None = Field(
         default=None,
         description="Applied parameter overrides for the trainer run.",
@@ -57,6 +61,7 @@ def admin_train(trainer: str, req: TrainReq):
 @router.post("/train_then_roll/{trainer}", response_model=TrainRollResp)
 def admin_train_then_roll(trainer: str, req: TrainReq):
     out: Dict[str, Any] = _svc.train_then_roll(
+
         trainer,
         wait_seconds=req.wait_seconds,
         image_key=req.image_key,

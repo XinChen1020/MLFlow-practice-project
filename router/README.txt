@@ -12,10 +12,14 @@ container images:
 
 ```yaml
 <trainer-name>:
-  trainer_image: example/trainer:latest   # default image when no selector is given
-  image_options:                          # optional selector -> image mapping
+  trainer_image: example/trainer:latest   # default trainer image when no selector is given
+  image_options:                          # optional selector -> trainer image mapping
     cpu: example/trainer:cpu
     gpu: example/trainer:cuda
+  serve_image: example/server:latest      # optional default serving runtime image
+  serve_image_options:                    # optional selector -> serving image mapping
+    cpu: example/server:cpu
+    gpu: example/server:cuda
   timeout: 1800
   gpus: "all"
   env:
@@ -44,5 +48,10 @@ Request body fields:
   `null` removes it from the final environment.
 
 Responses include the resolved `image_key` (or `null` when the default image was
-used) and any applied parameter overrides so logs and API clients can confirm
-how the trainer ran.
+used), the serving image that will be used for rollout, and any applied
+parameter overrides so logs and API clients can confirm how the trainer ran.
+
+The `POST /admin/roll` endpoint accepts an optional `serve_image` field when you
+want to override the runtime on a per-request basis. When the field is omitted,
+the router falls back to the serving image resolved from the trainer spec (or
+from the `SERVE_IMAGE` environment variable for backwards compatibility).
