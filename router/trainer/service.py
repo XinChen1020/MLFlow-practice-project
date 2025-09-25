@@ -38,7 +38,7 @@ class TrainerService:
 
     def __init__(self, specs: Optional[Dict[str, Any]] = None, roll_service: Optional[RollService] = None):
         self._docker = docker_client
-        self._specs = specs or cfg.load_trainer_specs()
+        self._specs = specs or cfg.load_specs()
         self._roll = roll_service or RollService()
         self._ml = MlflowClient(tracking_uri=cfg.MLFLOW_TRACKING_URI)
 

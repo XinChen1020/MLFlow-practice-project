@@ -44,7 +44,7 @@ services:
     build:
       context: ./router
     environment:
-      - TRAINER_SPECS_PATH=/app/trainer-specs
+      - SPECS_PATH=/app/specs
       - MLFLOW_TRACKING_URI=http://mlflow:${MLFLOW_SERVICE_PORT}
       - DOCKER_HOST=http://socket-proxy:2375
     volumes:

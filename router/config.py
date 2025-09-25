@@ -25,25 +25,25 @@ PROXY_ADMIN_URL      = os.getenv("PROXY_ADMIN_URL", "http://proxy:2019")
 PUBLIC_HOST          = os.getenv("PUBLIC_HOST", "localhost")
 
 # Trainer specs (directory or single file)
-TRAINER_SPECS_PATH   = os.getenv("TRAINER_SPECS_PATH")  # e.g., /app/trainer-specs
+SPECS_PATH   = os.getenv("SPECS_PATH")  # e.g., /app/trainer-specs
 
 def _read_text(path: str) -> str:
     """Read file and expand ${VARS} from environment (Compose-friendly)."""
     with open(path, "r") as f:
         return os.path.expandvars(f.read())
 
-def load_trainer_specs() -> dict:
+def load_specs() -> dict:
     """
     Load trainer specs from a directory (merging *.yaml|*.yml|*.json) or a single file.
     Each file may contain one or more trainer keys at top level.
     """
-    if not TRAINER_SPECS_PATH:
+    if not SPECS_PATH:
         return {}
 
     # Directory: merge all files
-    if os.path.isdir(TRAINER_SPECS_PATH):
+    if os.path.isdir(SPECS_PATH):
         out: dict = {}
-        for fp in sorted(glob.glob(os.path.join(TRAINER_SPECS_PATH, "*.*"))):
+        for fp in sorted(glob.glob(os.path.join(SPECS_PATH, "*.*"))):
             try:
                 text = _read_text(fp)
                 if fp.endswith((".yaml", ".yml")):
@@ -60,8 +60,8 @@ def load_trainer_specs() -> dict:
 
     # Single file: parse by extension
     try:
-        text = _read_text(TRAINER_SPECS_PATH)
-        if TRAINER_SPECS_PATH.endswith((".yaml", ".yml")):
+        text = _read_text(SPECS_PATH)
+        if SPECS_PATH.endswith((".yaml", ".yml")):
             return yaml.safe_load(text) or {}
         return json.loads(text)
     except Exception:
