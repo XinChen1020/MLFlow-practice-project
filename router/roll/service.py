@@ -70,9 +70,9 @@ class RollService:
         # Start a new container
         healthcheck = Healthcheck(
             test=["CMD", "curl", "--f",  f"http://localhost:{cfg.SERVE_PORT}/health"],
-            interval=5e9,     # 5s in nanoseconds
-            timeout=5e9,      # 5s
-            start_period=5e9, # 5s
+            interval=5 * 10**9,     # 5s in nanoseconds
+            timeout=5 * 10**9,      # 5s
+            start_period=5 * 10**9, # 5s
             retries=3,
         )
 
