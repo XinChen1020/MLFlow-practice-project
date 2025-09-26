@@ -9,5 +9,5 @@ sklearn-model-1:
   env:
     MLFLOW_EXPERIMENT: diabetes_rf_demo
     REGISTER_MODEL_NAME: DiabetesRF
-    N_ESTIMATORS: "200"
-    MAX_DEPTH: "8"
+    N_ESTIMATORS: 200
+    MAX_DEPTH: 8
