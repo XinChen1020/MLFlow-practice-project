@@ -15,7 +15,15 @@ ml_client = MlflowClient()
 docker_client = docker.DockerClient(base_url=cfg.DOCKER_HOST)
 
 # ---- State ----
-DEFAULT_STATE = {"active": None, "url": None, "public_url": None, "model_uri": None, "ts": None}
+DEFAULT_STATE = {
+    "active": None,
+    "url": None,
+    "public_url": None,
+    "model_uri": None,
+    "model_version": None,
+    "model_alias": None,
+    "ts": None,
+}
 
 def load_state() -> Dict[str, Any]:
     try:
@@ -41,6 +49,7 @@ def unique(prefix: str) -> str:
 def ping(url: str, timeout: float = 3.0) -> bool:
     if not url:
         return False
+
     try:
         r = httpx.get(url.rstrip("/") + "/ping", timeout=timeout)
         return (200 <= r.status_code < 300) or (r.text.strip().upper() == "OK")

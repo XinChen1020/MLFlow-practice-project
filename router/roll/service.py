@@ -1,6 +1,6 @@
 from __future__ import annotations
 import time, httpx
-from typing import Any, Dict, Union
+from typing import Any, Dict, Tuple, Union
 from fastapi import HTTPException
 
 import config as cfg
@@ -24,10 +24,13 @@ class RollService:
         wait_ready_seconds: int,
         serve_image: str | None = None,
     ) -> Dict[str, str]:
-        target_uri = self._resolve_models_uri(name, ref)
+        target_uri, version = self._resolve_models_uri(name, ref)
 
         candidate_name = unique("serve-cand")
-        self._start_runtime(candidate_name, cfg.COMPOSE_NETWORK, target_uri, serve_image=serve_image)
+        self._start_runtime(candidate_name, 
+                            cfg.COMPOSE_NETWORK, 
+                            target_uri, 
+                            serve_image=serve_image)
         cand_internal = f"http://{candidate_name}:{cfg.SERVE_PORT}"
 
         deadline = time.time() + wait_ready_seconds
@@ -50,19 +53,39 @@ class RollService:
             "url": cand_internal,
             "public_url": f"http://{cfg.PUBLIC_HOST}:{cfg.PROXY_PUBLIC_PORT}",
             "model_uri": target_uri,
+            "model_version": version,
+            "model_alias": cfg.PRODUCTION_ALIAS,
             "ts": time.time(),
         }
         save_state(new_state)
-        return {"active": candidate_name, "url": cand_internal, "public_url": new_state["public_url"]}
+
+        try:
+            self._ml.set_registered_model_alias(name, cfg.PRODUCTION_ALIAS, str(version))
+        except Exception as e:
+            raise HTTPException(
+                status_code=502,
+                detail=f"failed to set alias '{cfg.PRODUCTION_ALIAS}' on model '{name}': {e}",
+            )
+
+        return {
+            "active": candidate_name,
+            "url": cand_internal,
+            "public_url": new_state["public_url"],
+            "model_uri": target_uri,
+            "alias": cfg.PRODUCTION_ALIAS,
+            "version": version,
+        }
 
     # --- helpers ---
-    def _resolve_models_uri(self, name: str, ref: Union[str, int]) -> str:
+    def _resolve_models_uri(self, name: str, ref: Union[str, int]) -> Tuple[str, int]:
         try:
             if isinstance(ref, str) and ref.startswith("@"):  # alias
                 mv = self._ml.get_model_version_by_alias(name, ref[1:])
-                return f"models:/{name}/{mv.version}"
+                version = int(mv.version)
+                return f"models:/{name}/{version}", version
             if isinstance(ref, int):
-                return f"models:/{name}/{ref}"
+                version = int(ref)
+                return f"models:/{name}/{version}", version
         except Exception as e:
             raise HTTPException(status_code=404, detail=f"model/alias not found: {e}")
         raise HTTPException(status_code=400, detail="ref must be '@alias' or integer version")
@@ -80,10 +103,10 @@ class RollService:
         if not image:
             raise HTTPException(
                 status_code=500,
-                detail="Serving image not configured; supply serve_image via the request or trainer specs, or set SERVE_IMAGE."
+                detail="Serving image not configured; supply serve_image via the request or specs."
             )
         
-        # Start a new container
+        # Start a new container with healthcheck
         healthcheck = Healthcheck(
             test=["CMD", "curl", "--f",  f"http://localhost:{cfg.SERVE_PORT}/health"],
             interval=5 * 10**9,     # 5s in nanoseconds

@@ -29,6 +29,7 @@ class TrainResp(BaseModel):
     registered_model: str | None = None
     version: int | None = None
     alias_set: str | None = None
+    model_uri: str | None = None
     metrics: dict | None = None
     logs_tail: str | None = None
     image_key: str | None = Field(default=None, description="Image key used for the run.")
@@ -54,6 +55,7 @@ def admin_train(trainer: str, req: TrainReq):
         wait_seconds=req.wait_seconds,
         image_key=req.image_key,
         parameters=req.parameters,
+
     )
     return TrainResp(**out)
 

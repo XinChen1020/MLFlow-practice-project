@@ -27,6 +27,9 @@ PUBLIC_HOST          = os.getenv("PUBLIC_HOST", "localhost")
 # Trainer specs (directory or single file)
 SPECS_PATH   = os.getenv("SPECS_PATH")  # e.g., /app/trainer-specs
 
+PRODUCTION_ALIAS = os.getenv("PRODUCTION_ALIAS", "production")
+DEV_ALIAS = os.getenv("DEV_ALIAS", "dev")
+
 def _read_text(path: str) -> str:
     """Read file and expand ${VARS} from environment (Compose-friendly)."""
     with open(path, "r") as f:

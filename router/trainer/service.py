@@ -130,6 +130,7 @@ class TrainerService:
             "registered_model": model_name,
             "version": version,
             "alias_set": None,
+            "model_uri": None,
             "metrics": None,
             "image_key": selected_image_key,
             "parameters": applied_parameters or None,
@@ -178,8 +179,19 @@ class TrainerService:
                 wait_ready_seconds=cfg.HEALTH_TIMEOUT_SEC,
                 serve_image=train_resp.get("serve_image"),
             )
-
-            return {**train_resp, "rolled": True, "public_url": roll_out.get("public_url")}
+            alias = roll_out.get("alias")
+            rolled_version = roll_out.get("version")
+            resp = {
+                **train_resp,
+                "rolled": True,
+                "public_url": roll_out.get("public_url"),
+                "alias_set": alias or train_resp.get("alias_set"),
+            }
+            if rolled_version is not None:
+                resp["version"] = rolled_version
+            if roll_out.get("model_uri"):
+                resp["model_uri"] = roll_out["model_uri"]
+            return resp
         except HTTPException as e:
             return {**train_resp, "rolled": False, "logs_tail": f"roll failed: {e.detail}"}
 
@@ -205,6 +217,7 @@ class TrainerService:
             mvs = list(self._ml.search_model_versions(query))
             if mvs:
                 try:
+
                     return int(mvs[0].version)
                 except Exception:
                     pass
