@@ -14,6 +14,6 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 
 ENV PATH="/app/.venv/bin:$PATH"
 
-COPY . .
+COPY src/ .
 
 ENTRYPOINT ["python","/app/train.py"]

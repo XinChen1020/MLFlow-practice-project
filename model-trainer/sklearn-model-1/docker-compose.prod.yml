@@ -6,17 +6,16 @@ services:
   trainer-sklearn-model-1:
     build:
       context: .
-      dockerfile: Dockerfile.trainer
+      dockerfile: docker_build/Dockerfile_training
     image: trainer-sklearn-model-1:${TAG:-latest}
     command: ["true"]   # build-only helper; router will run the container later
   server-sklearn-model-1:
     build:
       context: .
-      dockerfile: Dockerfile.serve
+      dockerfile: docker_build/Dockerfile_serve
     image: server-sklearn-model-1:${TAG:-latest}
     environment:
       - MLFLOW_TRACKING_URI=http://mlflow:5000
-      - MODEL_NAME=DiabetesRF
-      - MODEL_STAGE=Production
+      - REGISTERED_MODEL_NAME=DiabetesRF
     command: ["true"]
 
