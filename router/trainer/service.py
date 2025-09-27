@@ -123,6 +123,8 @@ class TrainerService:
         version = None
         if status == 0:
             version = self._await_model_version(model_name, run_id)
+        
+        metrics, run_parameters = self._collect_run_data(run_id)
 
         resp = {
             "container": name,
@@ -131,9 +133,9 @@ class TrainerService:
             "version": version,
             "alias_set": None,
             "model_uri": None,
-            "metrics": None,
+            "metrics": metrics,
             "image_key": selected_image_key,
-            "parameters": applied_parameters or None,
+            "parameters": run_parameters or applied_parameters or None,
             "serve_image": serve_image
         }
 
@@ -223,7 +225,38 @@ class TrainerService:
                     pass
             time.sleep(sleep_s)
         return None
+    def _collect_run_data(
+        self,
+        run_id: str,
+        tries: int = 5,
+        sleep_s: float = 1.0,
+    ) -> Tuple[Optional[Dict[str, Any]], Optional[Dict[str, Any]]]:
+        """
+        Fetch metrics and parameters logged to MLflow for the given run.
 
+        Retries a few times to allow the tracking server to finish persisting data.
+        """
+
+        metrics: Optional[Dict[str, Any]] = None
+        params: Optional[Dict[str, Any]] = None
+        for _ in range(max(1, tries)):
+            try:
+                run = self._ml.get_run(run_id)
+            except Exception:
+                run = None
+            if run is not None:
+                data = getattr(run, "data", None)
+                if data is not None:
+                    run_metrics = dict(getattr(data, "metrics", {}) or {})
+                    run_params = dict(getattr(data, "params", {}) or {})
+                    if run_metrics:
+                        metrics = run_metrics
+                    if run_params:
+                        params = run_params
+                    if metrics or params or getattr(run.info, "status", None) != "RUNNING":
+                        break
+            time.sleep(sleep_s)
+        return metrics, params
     # ---------- Docker helpers ----------
 
     def _resolve_spec(self, trainer: str, image_key: Optional[str] = None) -> Dict[str, Any]:
