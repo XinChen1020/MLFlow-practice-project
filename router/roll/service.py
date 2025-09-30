@@ -1,13 +1,16 @@
 from __future__ import annotations
+import logging
 import time, httpx
 from typing import Any, Dict, Tuple, Union
+
 from fastapi import HTTPException
+from docker.errors import APIError, NotFound
+from docker.types import Healthcheck
 
 import config as cfg
 from common import ml_client, docker_client, load_state, save_state, unique, ping
-from docker.types import Healthcheck
 
-
+logger = logging.getLogger(__name__)
 
 class RollService:
     def __init__(self, *, proxy_admin_url: str | None = None):
