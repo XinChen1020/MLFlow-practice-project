@@ -54,7 +54,7 @@ async def lifespan(app: FastAPI):
         return
 
 app = FastAPI(title="Router (blue/green via Caddy proxy)", 
-              version="4.2.0",
+              version="0.1",
               lifespan=lifespan)
 app.include_router(status_router)
 app.include_router(roll_router)
