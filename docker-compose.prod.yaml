@@ -29,9 +29,9 @@ services:
   proxy:
     image: caddy:2
     container_name: proxy
-    # 9000 is the single public port your users will call
+    # 9000 is the single public port users will call
     ports:
-      - "9000:9000"
+      - "${PROXY_PORT}:9000"
       - "2019:2019"
     environment:
       - CADDY_ADMIN=0.0.0.0:2019   # enable Admin API (router uses http://proxy:2019)
