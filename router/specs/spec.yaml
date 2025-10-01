@@ -8,6 +8,6 @@ sklearn-model-1:
   timeout: 1800
   env:
     MLFLOW_EXPERIMENT: diabetes_rf_demo
-    REGISTER_MODEL_NAME: DiabetesRF
+    REGISTERED_MODEL_NAME: DiabetesRF
     N_ESTIMATORS: 200
     MAX_DEPTH: 8

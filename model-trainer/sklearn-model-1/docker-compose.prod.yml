@@ -8,7 +8,7 @@ services:
       context: .
       dockerfile: docker_build/Dockerfile_training
     image: trainer-sklearn-model-1:${TAG:-latest}
-    command: ["true"]   # build-only helper; router will run the container later
+    command: ["true"]
   server-sklearn-model-1:
     build:
       context: .

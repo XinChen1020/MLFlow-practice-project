@@ -1,6 +1,6 @@
 # docker-compose.yml
 version: "3.12"
-name: local   # ensures the default network is "local_default" (matches the router's default)
+name: local
 
 services:
   # --- MLflow tracking server + local artifact store ---
@@ -8,17 +8,17 @@ services:
     image: ghcr.io/mlflow/mlflow:v3.3.2
     command: >
       mlflow server
-      --host 0.0.0.0 --port ${MLFLOW_SERVICE_PORT}
+      --host 0.0.0.0 --port ${MLFLOW_INTERNAL_PORT}
       --backend-store-uri sqlite:////mlflowdb/mlflow.db
       --serve-artifacts
       --artifacts-destination file:///mlartifacts
     ports:
-      - "${LOCAL_PORT}:${MLFLOW_SERVICE_PORT}"
+      - "${MLFLOW_SERVICE_PORT}:${MLFLOW_INTERNAL_PORT}"   # external:internal
     volumes:
       - mlflowdb:/mlflowdb
       - mlartifacts:/mlartifacts
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:${MLFLOW_SERVICE_PORT}/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:${MLFLOW_INTERNAL_PORT}/health"]
       interval: 5s
       timeout: 3s
       retries: 3
@@ -44,12 +44,12 @@ services:
       context: ./router
     environment:
       - SPECS_PATH=/app/specs
-      - MLFLOW_TRACKING_URI=http://mlflow:${MLFLOW_SERVICE_PORT}
+      - MLFLOW_TRACKING_URI=http://mlflow:${MLFLOW_INTERNAL_PORT}
       - DOCKER_HOST=http://socket-proxy:2375
     volumes:
       - router_state:/state
     ports:
-      - "8010:8000"    # router API
+      - "${LOCAL_PORT}:8000"    # router API
     depends_on:
       - mlflow
       - socket-proxy
