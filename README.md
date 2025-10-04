@@ -5,7 +5,7 @@ MLFlow Switch Orchestrator provides a control plane for training and blue/green 
 ## System Overview
 
 - **Router service (`router/`)** – FastAPI admin surface that validates persisted rollout state on startup, launches trainer containers, registers model versions in MLflow, and rolls new revisions by updating the proxy and MLflow aliases.
-- **Trainer containers (`model-trainer/`)** – Spec-driven workloads that receive environment overrides, log lineage/metrics to MLflow, and optionally trigger immediate rollout.
+- **Trainer containers (`model-images/`)** – Spec-driven workloads that receive environment overrides, log lineage/metrics to MLflow, and optionally trigger immediate rollout.
 - **Serve containers** – Runtime images (e.g., the reference scikit-learn inference image) that pull the promoted model artifacts from MLflow and expose inference APIs once traffic is flipped to them.
 - **MLflow tracking (`docker-compose.prod.yaml`)** – Local MLflow server with SQLite backend store and file-based artifacts used by both trainers and the router.
 - **Caddy proxy + socket proxy** – Caddy exposes a stable public port while the router talks to Docker through a restricted socket proxy for safer automation.
@@ -14,7 +14,7 @@ MLFlow Switch Orchestrator provides a control plane for training and blue/green 
 1. Create a `.env` with any overrides for the variables referenced in `docker-compose.prod.yaml` (defaults work for local testing).
 2. Build the reference trainer and serving images that power the bundled `sklearn-model-1` spec using the provided compose file (it tags both images as `:latest` by default):
    ```bash
-   docker compose -f model-trainer/sklearn-model-1/docker-compose.prod.yml build
+   docker compose -f model-images/sklearn-model-1/docker-compose.prod.yml build
    ```
 3. Launch the stack:
    ```bash
@@ -46,7 +46,7 @@ MLFlow Switch Orchestrator provides a control plane for training and blue/green 
 7. Inspect experiment runs and registered models in MLflow at `http://localhost:${MLFLOW_SERVICE_PORT}` (defaults to `http://localhost:9010` unless overridden in your `.env`).
 
 ## Creating Your Own Trainer and Serving Images
-1. **Duplicate the sample project** – Copy `model-trainer/sklearn-model-1/` to a new folder and adjust its source to prepare data, train, and log to MLflow the way your model requires.
+1. **Duplicate the sample project** – Copy `model-images/sklearn-model-1/` to a new folder and adjust its source to prepare data, train, and log to MLflow the way your model requires.
 2. **Author Dockerfiles + compose entry** – Update the `docker_build/` Dockerfiles (or create new ones) to install dependencies and define the entrypoints for training (`Dockerfile_training`) and serving (`Dockerfile_serve`). Extend `docker-compose.prod.yml` (or create a sibling compose file) so `docker compose build` produces the trainer and serving images with tags that match what you plan to reference in router specs.
 3. **Register the spec** – Add a new entry to `router/specs/spec.yaml` pointing at your trainer and server images, default environment variables, timeouts, and any image selectors you need:
    ```yaml
@@ -85,7 +85,7 @@ router/
 ├── trainer/             # Admin endpoints + Docker orchestration helpers
 ├── roll/                # Blue/green deployment service and health checks
 └── status/              # Active deployment status endpoint
-model-trainer/
+model-images/
 └── sklearn-model-1/     # Reference trainer + server build contexts
 ```
 

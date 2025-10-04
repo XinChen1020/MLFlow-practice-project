@@ -827,7 +827,7 @@ wheels = [
 ]
 
 [[package]]
-name = "model-trainer"
+name = "model-images"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [

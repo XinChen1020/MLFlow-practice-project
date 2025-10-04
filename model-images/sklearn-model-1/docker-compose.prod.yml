@@ -8,7 +8,6 @@ services:
       context: .
       dockerfile: docker_build/Dockerfile_training
     image: trainer-sklearn-model-1:${TAG:-latest}
-    command: ["true"]
   server-sklearn-model-1:
     build:
       context: .
@@ -17,5 +16,3 @@ services:
     environment:
       - MLFLOW_TRACKING_URI=http://mlflow:5000
       - REGISTERED_MODEL_NAME=DiabetesRF
-    command: ["true"]
-
