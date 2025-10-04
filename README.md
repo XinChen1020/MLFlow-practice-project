@@ -1,6 +1,6 @@
 # MLFlow Switch Orchestrator
 
-This projoect provides a endpoints for training and rolling deployments of MLflow-registered models with zero-down time. A FastAPI router coordinates on-demand trainers, manages candidate containers, and flips a Caddy reverse proxy once health checks pass.
+This projoect provides endpoints for training and rolling deployments of MLflow-registered models with zero-down time. A FastAPI router coordinates on-demand trainers, manages candidate containers, and flips a Caddy reverse proxy once health checks pass.
 
 ## System Overview
 
