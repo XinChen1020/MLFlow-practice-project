@@ -1,13 +1,13 @@
 # MLFlow Switch Orchestrator
 
-MLFlow Switch Orchestrator provides a control plane for training and blue/green rolling deployments of MLflow-registered models. A FastAPI router coordinates on-demand trainers, manages candidate containers, and flips a Caddy reverse proxy once health checks pass.
+This projoect provides a endpoints for training and rolling deployments of MLflow-registered models with zero-down time. A FastAPI router coordinates on-demand trainers, manages candidate containers, and flips a Caddy reverse proxy once health checks pass.
 
 ## System Overview
 
 - **Router service (`router/`)** – FastAPI admin surface that validates persisted rollout state on startup, launches trainer containers, registers model versions in MLflow, and rolls new revisions by updating the proxy and MLflow aliases.
 - **Trainer containers (`model-images/`)** – Spec-driven workloads that receive environment overrides, log lineage/metrics to MLflow, and optionally trigger immediate rollout.
 - **Serve containers** – Runtime images (e.g., the reference scikit-learn inference image) that pull the promoted model artifacts from MLflow and expose inference APIs once traffic is flipped to them.
-- **MLflow tracking (`docker-compose.prod.yaml`)** – Local MLflow server with SQLite backend store and file-based artifacts used by both trainers and the router.
+- **MLflow tracking** – Local MLflow server with SQLite backend store and file-based artifacts used by both trainers and the router.
 - **Caddy proxy + socket proxy** – Caddy exposes a stable public port while the router talks to Docker through a restricted socket proxy for safer automation.
 
 ## Getting Started
